@@ -2,14 +2,22 @@
   <h2>Word Template Processor</h2>
   <p>Upload a .docx file with {{tags}} to get started.</p>
 
-  <div class="file-input-container">
-    <label for="file-upload" class="custom-file-upload">
-      Choose Word Document
-    </label>
-    <input id="file-upload" type="file" (change)="onFileChange($event)" accept=".docx" />
+  <div 
+    class="drop-zone" 
+    appFileDrop
+    (fileDropped)="onFileDropped($event)">
+    <div class="file-input-container">
+      <label for="file-upload" class="custom-file-upload">
+        Choose Word Document
+      </label>
+      <input id="file-upload" type="file" (change)="onFileChange($event)" accept=".docx" />
+      <p>or drag and drop a file here</p>
+    </div>
   </div>
 
-  <div *ngIf="tags.length > 0" class="tags-container">
+  <div *ngIf="isLoading" class="loader"></div>
+
+  <div *ngIf="tags.length > 0 && !isLoading" class="tags-container">
     <h3>Extracted Tags</h3>
     <div *ngFor="let tag of tags" class="tag-input">
       <label>{{ tag }}</label>
