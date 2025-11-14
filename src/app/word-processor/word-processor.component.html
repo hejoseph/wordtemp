@@ -1,0 +1,24 @@
+<div class="container">
+  <h2>Word Template Processor</h2>
+  <p>Upload a .docx file with {{tags}} to get started.</p>
+
+  <div class="file-input-container">
+    <label for="file-upload" class="custom-file-upload">
+      Choose Word Document
+    </label>
+    <input id="file-upload" type="file" (change)="onFileChange($event)" accept=".docx" />
+  </div>
+
+  <div *ngIf="tags.length > 0" class="tags-container">
+    <h3>Extracted Tags</h3>
+    <div *ngFor="let tag of tags" class="tag-input">
+      <label>{{ tag }}</label>
+      <input type="text" [(ngModel)]="tagValues[tag]" placeholder="Enter value for {{tag}}" />
+    </div>
+    <button (click)="generateDocument()" class="generate-btn">Generate Document</button>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    {{ error }}
+  </div>
+</div>
