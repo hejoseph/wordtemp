@@ -12,6 +12,24 @@
   margin-bottom: 1.5rem;
 }
 
+.drop-zone {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.drop-zone p {
+  margin-top: 10px;
+  color: #777;
+}
+
 .custom-file-upload {
   border: 1px solid #ccc;
   display: inline-block;
