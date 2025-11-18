@@ -141,9 +141,23 @@ export class WordProcessorComponent {
         delimiters: { start: '«', end: '»' },
         paragraphLoop: true,
         linebreaks: true,
+        nullGetter: (part: any) => {
+          // Return the original tag if no value is provided
+          // This keeps «field_name» in the document when empty
+          return '«' + part.value + '»';
+        }
       });
 
-      doc.setData(this.tagValues);
+      // Only pass values that have been filled (not empty strings)
+      const filledValues: { [key: string]: string } = {};
+      Object.keys(this.tagValues).forEach(key => {
+        const value = this.tagValues[key];
+        if (value !== '') {
+          filledValues[key] = value;
+        }
+      });
+
+      doc.setData(filledValues);
       doc.render();
 
       const out = doc.getZip().generate({
