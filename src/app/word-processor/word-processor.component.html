@@ -20,8 +20,8 @@
   <div *ngIf="tags.length > 0 && !isLoading" class="tags-container">
     <h3>Fill Merge Fields</h3>
     <div *ngFor="let tag of tags" class="tag-input">
-      <label>{{ tag }}</label>
-      <input type="text" [(ngModel)]="tagValues[tag]" placeholder="Enter value for {{ tag }}" />
+      <label>{{ getFieldLabel(tag) }}</label>
+      <input type="text" [(ngModel)]="tagValues[tag]" placeholder="Enter {{ getFieldLabel(tag).toLowerCase() }}" />
     </div>
     <button (click)="generateDocument()" class="generate-btn">Generate Document</button>
   </div>

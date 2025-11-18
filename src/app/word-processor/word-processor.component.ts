@@ -21,6 +21,14 @@ export class WordProcessorComponent {
   isDragOver = false;
   private fileBuffer: ArrayBuffer | null = null;
 
+  // Convert field name to readable label (e.g., nom_societe_client -> Nom Societe Client)
+  getFieldLabel(fieldName: string): string {
+    return fieldName
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
   onFileDropped(file: File) {
     this.processFile(file);
   }
@@ -93,8 +101,8 @@ export class WordProcessorComponent {
         while ((match = regex.exec(fullText)) !== null) {
           const fieldName = match[1].trim();
           // Validate: field name should only contain lowercase letters, numbers, and underscores
-          // and should not contain XML tags or special characters
-          if (fieldName && /^[a-z0-9_]+$/.test(fieldName)) {
+          // and MUST contain at least one underscore to be considered a valid merge field
+          if (fieldName && /^[a-z0-9_]+$/.test(fieldName) && fieldName.includes('_')) {
             foundTags.add(fieldName);
           } else {
             console.warn('Ignoring invalid field name:', fieldName);
