@@ -55,13 +55,13 @@ export class WordProcessorComponent {
       try {
         const zip = new PizZip(this.fileBuffer);
         const doc = new Docxtemplater(zip, {
-          delimiters: { start: '{{', end: '}}' },
+          delimiters: { start: '«', end: '»' },
           paragraphLoop: true,
           linebreaks: true,
         });
 
         const text = doc.getFullText();
-        const regex = /\{\{([^\s{}]+)\}\}/g;
+        const regex = /«([^»]+)»/g;
         let match;
         const foundTags = new Set<string>();
         while ((match = regex.exec(text)) !== null) {
@@ -70,7 +70,7 @@ export class WordProcessorComponent {
 
         this.tags = Array.from(foundTags);
         if (this.tags.length === 0) {
-          this.error = "No tags found in the document. Ensure they are formatted as {{tag}}.";
+          this.error = "No tags found in the document. Ensure they are formatted as «tag».";
         }
         this.tagValues = {};
         this.tags.forEach(tag => this.tagValues[tag] = '');
@@ -97,7 +97,7 @@ export class WordProcessorComponent {
     try {
       const zip = new PizZip(this.fileBuffer);
       const doc = new Docxtemplater(zip, {
-        delimiters: { start: '{{', end: '}}' },
+        delimiters: { start: '«', end: '»' },
         paragraphLoop: true,
         linebreaks: true,
       });
