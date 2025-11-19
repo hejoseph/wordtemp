@@ -33,7 +33,10 @@
 <body>
 <div class="wrap">
   <div class="card">
-    <h1>DOCX Form Filler — MVP</h1>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="https://images.squarespace-cdn.com/content/v1/5f2bcafcac058b492651108a/7ac4fb80-c213-4ba0-a1a3-1d5e7b7c6ff8/Groupe-Ingena-Drims_logo.png?format=1500w" alt="Logo" style="height: 40px;"/>
+      <h1>DOCX Form Filler — MVP</h1>
+    </div>
     <p class="lead">Load a Word template (.docx) containing tokens like <code>«nom_societe_client»</code>, fill values, and generate a new .docx with only the non-empty fields replaced.</p>
 
     <div class="row">
@@ -154,28 +157,31 @@ fileInput.addEventListener('change', async (e) => {
       return;
     }
 
-    
-    let xmlText = await docXmlFile.async('text');
-
-    // Also read headers and footers
     const headerFooterFiles = [
       'word/header1.xml', 'word/header2.xml', 'word/header3.xml',
-      'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'
+      'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml', 'word/document.xml'
     ];
 
+    let xmlText = "";
     for (const fileName of headerFooterFiles) {
       const headerFooterFile = zip.file(fileName);
       if (headerFooterFile) {
         try {
           const content = await headerFooterFile.async('text');
           if (content) {
-            xmlText += ' ' + content;
+            xmlText += content + ' ';
           }
         } catch (e) {
           console.warn(`Could not read ${fileName}, which is fine.`, e);
         }
       }
     }
+
+    
+    // xmlText = await docXmlFile.async('text');
+
+    // Also read headers and footers
+    
 
     // Basic normalization: join adjacent <w:t> tags to reduce run-splits.
     // This is a pragmatic step for MVP; it may remove some formatting information
@@ -268,15 +274,6 @@ function diffArr(sourceArr, destArr){
 
 function extractFields(xml) {
   fullText = removeAllXmlMarkup(xml);
-  // simple regex for guillemets «...»
-  // const re = /«([^»]+)»/g;
-  // const matches = [];
-  // let m;
-  // while ((m = re.exec(xml)) !== null) {
-  //   const raw = m[1].trim();
-  //   if (raw.length > 0) matches.push(raw);
-  // }
-  // return matches;
 
   const regex = /«([^»]+)»/g;
   let match;
