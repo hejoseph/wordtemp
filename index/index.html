@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DOCX Form Filler — Single-file MVP</title>
+<style>
+  :root{--bg:#f6f8fb;--card:#fff;--accent:#2b6cb0;--muted:#666}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; margin:0;background:var(--bg);color:#111}
+  .wrap{max-width:1000px;margin:28px auto;padding:20px}
+  .card{background:var(--card);border-radius:10px;box-shadow:0 6px 18px rgba(20,30,40,0.06);padding:18px}
+  h1{margin:0 0 8px;font-size:20px}
+  p.lead{margin:0 0 14px;color:var(--muted)}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  input[type=file]{display:block}
+  button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+  button.secondary{background:#e6eefc;color:var(--accent)}
+  .cols{display:grid;grid-template-columns:1fr 420px;gap:16px;margin-top:16px}
+  .panel{background:#fff;padding:12px;border-radius:8px;min-height:220px;overflow:auto}
+  .form-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  label{width:160px;font-size:13px;color:var(--muted)}
+  input[type=text], textarea, select{flex:1;padding:8px;border-radius:6px;border:1px solid #e2e8f0}
+  textarea{height:60px;resize:vertical}
+  .actions{display:flex;gap:8px;align-items:center;margin-top:10px}
+  .meta{font-size:13px;color:var(--muted);margin-top:8px}
+  .warning{background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:8px;border-radius:6px;font-size:13px}
+  .small{font-size:13px;color:var(--muted)}
+  .field-count{font-weight:600}
+  footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+  @media(max-width:920px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>DOCX Form Filler — MVP</h1>
+    <p class="lead">Load a Word template (.docx) containing tokens like <code>«nom_societe_client»</code>, fill values, and generate a new .docx with only the non-empty fields replaced.</p>
+
+    <div class="row">
+      <div>
+        <label class="small">1) Choose a Word template (.docx)</label><br/>
+        <input id="docxFile" type="file" accept=".docx"/>
+      </div>
+      <div style="min-width:240px">
+        <label class="small">2) Detected fields</label><br/>
+        <div id="fieldCounter" class="small">No file loaded</div>
+      </div>
+      <div style="margin-left:auto">
+        <button id="generateBtn" disabled>Generate Word</button>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="panel" id="formPanel">
+          <div id="formIntro">
+            <p class="small">When you load a template, detected fields will appear here as form inputs. Fields are detected by the pattern <code>«field_name_here»</code> — underscores will be converted to spaces for labels.</p>
+            <div class="warning" id="warnSplit" style="display:none;margin-top:10px">
+              Some tokens in your document may be split across Word runs; if detection fails for certain tokens try ensuring the token is a single run in Word (edit and reapply font without additional styling).
+            </div>
+          </div>
+          <div id="formArea"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h3 style="margin-top:0">Actions</h3>
+          <div class="meta">
+            <div><strong>Loaded template:</strong> <span id="tmplName">—</span></div>
+            <div><strong>Fields detected:</strong> <span id="tmplCount">0</span></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <button id="saveJson" class="secondary" disabled>Save form values (.json)</button>
+            <button id="loadJson" class="secondary" style="margin-left:6px">Load values (.json)</button>
+          </div>
+
+          <div style="margin-top:10px">
+            <label class="small">Preview replacements (non-empty only):</label>
+            <div id="previewList" style="margin-top:6px;color:var(--muted)"></div>
+          </div>
+
+          <div class="actions" style="margin-top:12px">
+            <button id="clearBtn" class="secondary">Clear</button>
+            <button id="helpBtn" class="secondary">Help</button>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="small">How it works: the app reads the `.docx` (ZIP) in the browser, extracts <code>word/document.xml</code>, normalizes text runs, finds tokens matching <code>«...»</code>, builds the form, and when generating replaces only tokens with non-empty values and downloads a new .docx.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>Built for you — offline single-file MVP</footer>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+
+<script>
+/*
+  docx-form-mvp.html
+  - Loads a .docx (client-side)
+  - Finds tokens like «field_name»
+  - Builds a form
+  - Replaces non-empty values and downloads a new .docx
+
+  Notes:
+  - Some Word documents split text across <w:t> runs.
+    We attempt a simple normalization step (merge adjacent runs) before scanning.
+    This will often work for tokens that are not heavily formatted across runs.
+*/
+
+const fileInput = document.getElementById('docxFile');
+const formArea = document.getElementById('formArea');
+const fieldCounter = document.getElementById('fieldCounter');
+const tmplName = document.getElementById('tmplName');
+const tmplCount = document.getElementById('tmplCount');
+const generateBtn = document.getElementById('generateBtn');
+const saveJsonBtn = document.getElementById('saveJson');
+const loadJsonBtn = document.getElementById('loadJson');
+const previewList = document.getElementById('previewList');
+const clearBtn = document.getElementById('clearBtn');
+const helpBtn = document.getElementById('helpBtn');
+const warnSplit = document.getElementById('warnSplit');
+
+let currentZip = null;
+let originalDocumentXml = null;
+let detectedFields = []; // array of field names
+let templateFilename = null;
+
+fileInput.addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  resetState();
+  if (!f) return;
+  if (!f.name.toLowerCase().endsWith('.docx')) {
+    alert('Please select a .docx file');
+    return;
+  }
+  templateFilename = f.name;
+  tmplName.textContent = f.name;
+  fieldCounter.textContent = 'Reading file...';
+  try {
+    const arrayBuffer = await f.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    currentZip = zip;
+    // Read document.xml
+    const docXmlFile = zip.file('word/document.xml');
+    if (!docXmlFile) {
+      alert('This .docx does not contain word/document.xml (not a valid Word document).');
+      resetState();
+      return;
+    }
+
+    
+    let xmlText = await docXmlFile.async('text');
+
+    // const headerFooterFiles = ['word/header1.xml', 'word/header2.xml', 'word/header3.xml', 'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'];
+    // headerFooterFiles.forEach(fileName => {
+    //   try {
+    //     docXmlFile = zip.file(fileName);
+    //     const content = await docXmlFile.async('text');
+    //     if (content) {
+    //       xmlText += ' ' + content;
+    //     }
+    //   } catch (e) {
+    //     // File might not exist, which is fine
+    //   }
+    // });
+
+    // Basic normalization: join adjacent <w:t> tags to reduce run-splits.
+    // This is a pragmatic step for MVP; it may remove some formatting information
+    // but helps detect tokens like «field_name» when Word split them across runs.
+    const normalized = normalizeRuns(xmlText);
+    originalDocumentXml = normalized;
+    // detect tokens: «...»
+    detectedFields = extractFields(normalized);
+    // unique and keep order
+    // detectedFields = Array.from(new Set(detectedFields));
+    buildForm(detectedFields);
+    fieldCounter.textContent = detectedFields.length ? `${detectedFields.length} fields detected` : 'No fields detected';
+    tmplCount.textContent = detectedFields.length;
+    generateBtn.disabled = detectedFields.length === 0;
+    saveJsonBtn.disabled = detectedFields.length === 0;
+    warnSplit.style.display = ''; // show and hide based on detection issues
+    if (detectedFields.length === 0) {
+      warnSplit.style.display = 'block';
+      warnSplit.innerText = 'No tokens detected. This may be because tokens are split across Word runs in a way the app could not normalize. Try ensuring your tokens are plain text (single run) in Word, or remove formatting around the token.';
+    } else {
+      warnSplit.style.display = 'none';
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error reading .docx: ' + (err && err.message ? err.message : err));
+    resetState();
+  }
+});
+
+function resetState() {
+  currentZip = null;
+  originalDocumentXml = null;
+  detectedFields = [];
+  templateFilename = null;
+  formArea.innerHTML = '';
+  fieldCounter.textContent = 'No file loaded';
+  tmplName.textContent = '—';
+  tmplCount.textContent = '0';
+  generateBtn.disabled = true;
+  saveJsonBtn.disabled = true;
+  previewList.innerHTML = '';
+  warnSplit.style.display = 'none';
+}
+
+function normalizeRuns(xml) {
+  // Merge adjacent text nodes: replace patterns like </w:t><w:t ...> with nothing between so tokens are contiguous.
+  // Keep attributes of the first tag; remove the closing/opening boundary so the inner text is contiguous.
+  // Note: this is a pragmatic transformation that may remove some formatting boundaries.
+  // We'll do two passes: remove boundaries and also remove <w:tab/> which can split tokens
+  let out = xml;
+
+  // Remove w:tab tags that could split tokens
+  out = out.replace(/<w:tab\/>/g, '');
+
+  // Merge sequences of '</w:t></w:r><w:r[^>]*><w:t[^>]*>' into '' boundary
+  // We'll replace the pattern multiple times until stable
+  const pattern = /<\/w:t>\s*<\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>/gi;
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(pattern, '');
+  } while (out !== prev);
+
+  // Additionally, some templates use <w:instrText> for fields, ensure we normalize them by removing boundaries similarly
+  const pattern2 = /<\/w:t>\s*<w:br\/>\s*<w:t[^>]*>/gi;
+  out = out.replace(pattern2, '');
+
+  return out;
+}
+
+function removeAllXmlMarkup(documentXml){
+  const textContentRegex = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
+  let textMatch;
+  let fullText = '';
+  while ((textMatch = textContentRegex.exec(documentXml)) !== null) {
+    fullText += textMatch[1];
+  }
+  return fullText;
+}
+
+function diffArr(sourceArr, destArr){
+  const setFromArray = new Set(sourceArr);
+  const setFromString = new Set(destArr);
+
+  // Filter myArray to include only items NOT found in the stringArray Set
+  const differenceA = sourceArr.filter(item => !setFromString.has(item));
+
+  console.log(differenceA);
+}
+
+function extractFields(xml) {
+  fullText = removeAllXmlMarkup(xml);
+  // simple regex for guillemets «...»
+  // const re = /«([^»]+)»/g;
+  // const matches = [];
+  // let m;
+  // while ((m = re.exec(xml)) !== null) {
+  //   const raw = m[1].trim();
+  //   if (raw.length > 0) matches.push(raw);
+  // }
+  // return matches;
+
+  const regex = /«([^»]+)»/g;
+  let match;
+  const foundTags = new Set();
+  while ((match = regex.exec(fullText)) !== null) {
+    const fieldName = match[1].trim();
+    // Validate: field name should only contain lowercase letters, numbers, and underscores
+    // and MUST contain at least one underscore to be considered a valid merge field
+    if (fieldName && /^[a-z0-9_]+$/.test(fieldName) && fieldName.includes('_')) {
+      foundTags.add(fieldName);
+    } else {
+      console.warn('Ignoring invalid field name:', fieldName);
+    }
+  }
+  const foundTagsArr = Array.from(foundTags);
+
+  const delimitedString = "num_contrat;nom_societe_client;nom_societe_client2;nom_societe_client3;nom_societe_client4;adresse_societe_client;siren_client;num_orias;nom_representant;fonction_representant;groupe_client;num_reference;date_appel_offre;date_cahier_charges_client;nb_jour_test_client;debut_date_test;fin_date_test;nom_editeur;nom_solution;date_effet_contrat;duree_annee_contrat;nom_prenom_prestataire;adresse_prestataire;email_prestataire;tel_prestataire;nom_prenom_client;adresse_client;email_client;tel_client;email_compta_client;nom_departement_facture_client;delai_reponse_client;delai_reponse_prestataire;nom_direction_client;fonction_direction_client;nom_solution_gestion_risque;nom_solution_gestion_risque2;nom_editeur_risque;nom_editeur_risque;nom_editeur_risque_long;date_mise_en_prod;tel_editeur_risque;mail_editeur_risque";
+
+  const stringArray = delimitedString.split(';');
+  console.log("Array foundTags Size:", foundTagsArr.length);
+  console.log("Array Excel tag Size:", stringArray.length);
+
+  console.log("items not in excel")
+  diffArr(foundTagsArr, stringArray);
+
+  console.log("in excel, but not in word")
+  diffArr(stringArray, foundTagsArr);
+
+  return foundTagsArr;
+
+}
+
+function buildForm(fields) {
+  formArea.innerHTML = '';
+  if (!fields || fields.length === 0) {
+    formArea.innerHTML = '<div class="small">No fields detected. Load a template with tokens like «field_name».</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  fields.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    const label = document.createElement('label');
+    label.textContent = prettyLabel(name);
+    label.htmlFor = 'f_' + name;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'f_' + name;
+    input.dataset.fieldName = name;
+    input.placeholder = name;
+    input.addEventListener('input', updatePreview);
+    row.appendChild(label);
+    row.appendChild(input);
+    frag.appendChild(row);
+  });
+  formArea.appendChild(frag);
+  updatePreview();
+}
+
+function prettyLabel(name) {
+  return (name || '').replace(/_/g, ' ').replace(/\b\w/g, s => s.toUpperCase());
+}
+
+function gatherValues() {
+  const inputs = formArea.querySelectorAll('input[data-field-name], textarea[data-field-name], select[data-field-name]');
+  const values = {};
+  inputs.forEach(inp => {
+    const k = inp.dataset.fieldName;
+    const v = (inp.value || '').toString();
+    values[k] = v;
+  });
+  return values;
+}
+
+function updatePreview() {
+  const vals = gatherValues();
+  const entries = Object.entries(vals).filter(([k,v]) => v && v.trim() !== '');
+  if (entries.length === 0) {
+    previewList.innerHTML = '<div class="small">No replacements selected (all fields empty).</div>';
+    return;
+  }
+  previewList.innerHTML = '';
+  entries.slice(0,100).forEach(([k,v]) => {
+    const d = document.createElement('div');
+    d.textContent = `${prettyLabel(k)} → ${v}`;
+    previewList.appendChild(d);
+  });
+  if (entries.length > 100) {
+    const more = document.createElement('div');
+    more.className = 'small';
+    more.textContent = `...and ${entries.length - 100} more`;
+    previewList.appendChild(more);
+  }
+}
+
+generateBtn.addEventListener('click', async () => {
+  if (!currentZip || !originalDocumentXml) { alert('No template loaded'); return; }
+  const values = gatherValues();
+  // perform replacements for non-empty values only
+  let modifiedXml = originalDocumentXml;
+  Object.entries(values).forEach(([key, val]) => {
+    if (val === null || val === undefined) return;
+    const trimmed = val.toString().trim();
+    if (trimmed.length === 0) return; // skip empty -> leave token as-is
+    // Escape &,<,>
+    const esc = escapeXml(trimmed);
+    // Replace all occurrences of «key» with escaped text.
+    // Use global replace with regex, but escape key for regex.
+    const token = `«${key}»`;
+    // Use split/join to avoid regex escaping complexity
+    modifiedXml = modifiedXml.split(token).join(esc);
+  });
+
+  // Put modifiedXml back into zip and generate new docx
+  try {
+    const newZip = new JSZip();
+    // copy all files from currentZip to newZip, but replace document.xml
+    const files = Object.keys(currentZip.files);
+    // We'll use async loops
+    for (const path of files) {
+      if (path === 'word/document.xml') {
+        newZip.file(path, modifiedXml);
+      } else {
+        const f = currentZip.file(path);
+        if (!f) continue;
+        const content = await f.async('uint8array');
+        newZip.file(path, content);
+      }
+    }
+    const outBlob = await newZip.generateAsync({type:'blob'});
+    const outName = templateFilename ? templateFilename.replace(/\.docx$/i,'') + '_filled.docx' : 'generated.docx';
+    downloadBlob(outBlob, outName);
+  } catch (err) {
+    console.error(err);
+    alert('Error generating new .docx: ' + (err && err.message ? err.message : err));
+  }
+});
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+
+function escapeXml(unsafe) {
+  return unsafe.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Save form values as JSON file
+saveJsonBtn.addEventListener('click', () => {
+  const values = gatherValues();
+  const blob = new Blob([JSON.stringify(values, null, 2)], {type:'application/json'});
+  downloadBlob(blob, (templateFilename||'form') + '_values.json');
+});
+
+// Load form values from a JSON file
+loadJsonBtn.addEventListener('click', () => {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json';
+  inp.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try {
+      const text = await f.text();
+      const obj = JSON.parse(text);
+      // populate form fields that exist
+      Object.entries(obj).forEach(([k,v]) => {
+        const el = document.querySelector('[data-field-name="'+k+'"]');
+        if (el) el.value = v;
+      });
+      updatePreview();
+    } catch (err) {
+      alert('Failed to load JSON: ' + err);
+    }
+  });
+  inp.click();
+});
+
+clearBtn.addEventListener('click', () => {
+  const inputs = formArea.querySelectorAll('input[data-field-name], textarea[data-field-name], select[data-field-name]');
+  inputs.forEach(i => i.value = '');
+  updatePreview();
+});
+
+helpBtn.addEventListener('click', () => {
+  alert(`MVP Help:
+1) In your Word template, put tokens like «field_name_here» (use underscore for spaces).
+2) Save the .docx.
+3) Load the .docx with the "Choose Word Template" button.
+4) Fill values in the form and click "Generate Word".
+Notes:
+- Empty values leave the token unchanged.
+- If tokens are not detected, they may be split across Word text runs; try retyping the token in Word as plain text (no special formatting).`);
+});
+
+</script>
+</body>
+</html>
