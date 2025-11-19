@@ -222,17 +222,12 @@ const contractsList = document.getElementById('contractsList');
 const generateSelectedBtn = document.getElementById('generateSelectedBtn');
 
 let savedContracts = [];
-let contractIdCounter = 0;
 
 // Initializer function
 async function initializeApp() {
   try {
     await idbHelper.init();
     savedContracts = await idbHelper.getContracts();
-    if (savedContracts.length > 0) {
-        // Set the counter to the highest existing ID + 1 to avoid collisions
-        contractIdCounter = Math.max(...savedContracts.map(c => c.id)) + 1;
-    }
     renderContractsList();
   } catch (err) {
     console.error('Could not initialize IndexedDB:', err);
@@ -680,20 +675,19 @@ saveContractBtn.addEventListener('click', async () => {
           return;
       }
   } else {
+      // For a new contract, omit the ID. IndexedDB will generate it.
       const newContract = {
-        id: contractIdCounter++,
         name: name,
         values: values
       };
-      savedContracts.push(newContract);
+      
       try {
-        // The save returns the new ID, which we can assign back if needed, though our counter should be in sync.
+        // The save returns the new ID, which we must assign to our in-memory object.
         const newId = await idbHelper.saveContract(newContract);
-        newContract.id = newId; // Ensure our in-memory object has the DB-assigned key
+        newContract.id = newId; // Assign the DB-generated key
+        savedContracts.push(newContract);
       } catch (err) {
         alert('Erreur lors de l\'enregistrement du contrat dans la base de données.');
-        // rollback in-memory change
-        savedContracts = savedContracts.filter(c => c.id !== newContract.id);
       }
   }
   
