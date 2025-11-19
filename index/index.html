@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>DOCX Form Filler — Single-file MVP</title>
+<title>Remplisseur de formulaires DOCX — MVP monofichier</title>
 <style>
   :root{--bg:#f6f8fb;--card:#fff;--accent:#2b6cb0;--muted:#666}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; margin:0;background:var(--bg);color:#111}
@@ -35,21 +35,21 @@
   <div class="card">
     <div style="display: flex; align-items: center; gap: 12px;">
       <img src="https://images.squarespace-cdn.com/content/v1/5f2bcafcac058b492651108a/7ac4fb80-c213-4ba0-a1a3-1d5e7b7c6ff8/Groupe-Ingena-Drims_logo.png?format=1500w" alt="Logo" style="height: 40px;"/>
-      <h1>DOCX Form Filler — MVP</h1>
+      <h1>Remplisseur de formulaires DOCX — MVP</h1>
     </div>
-    <p class="lead">Load a Word template (.docx) containing tokens like <code>«nom_societe_client»</code>, fill values, and generate a new .docx with only the non-empty fields replaced.</p>
+    <p class="lead">Chargez un modèle Word (.docx) contenant des jetons comme <code>«nom_societe_client»</code>, remplissez les valeurs et générez un nouveau .docx avec uniquement les champs non vides remplacés.</p>
 
     <div class="row">
       <div>
-        <label class="small">1) Choose a Word template (.docx)</label><br/>
+        <label class="small">1) Choisissez un modèle Word (.docx)</label><br/>
         <input id="docxFile" type="file" accept=".docx"/>
       </div>
       <div style="min-width:240px">
-        <label class="small">2) Detected fields</label><br/>
-        <div id="fieldCounter" class="small">No file loaded</div>
+        <label class="small">2) Champs détectés</label><br/>
+        <div id="fieldCounter" class="small">Aucun fichier chargé</div>
       </div>
       <div style="margin-left:auto">
-        <button id="generateBtn" disabled>Generate Word</button>
+        <button id="generateBtn" disabled>Générer le Word</button>
       </div>
     </div>
 
@@ -57,9 +57,9 @@
       <div>
         <div class="panel" id="formPanel">
           <div id="formIntro">
-            <p class="small">When you load a template, detected fields will appear here as form inputs. Fields are detected by the pattern <code>«field_name_here»</code> — underscores will be converted to spaces for labels.</p>
+            <p class="small">Lorsque vous chargez un modèle, les champs détectés apparaîtront ici sous forme de champs de formulaire. Les champs sont détectés par le motif <code>«nom_du_champ_ici»</code> — les tirets bas seront convertis en espaces pour les étiquettes.</p>
             <div class="warning" id="warnSplit" style="display:none;margin-top:10px">
-              Some tokens in your document may be split across Word runs; if detection fails for certain tokens try ensuring the token is a single run in Word (edit and reapply font without additional styling).
+              Certains jetons de votre document peuvent être divisés entre plusieurs "runs" Word ; si la détection échoue pour certains jetons, essayez de vous assurer que le jeton est un seul "run" dans Word (modifiez et réappliquez la police sans style supplémentaire).
             </div>
           </div>
           <div id="formArea"></div>
@@ -70,33 +70,33 @@
         <div class="panel">
           <h3 style="margin-top:0">Actions</h3>
           <div class="meta">
-            <div><strong>Loaded template:</strong> <span id="tmplName">—</span></div>
-            <div><strong>Fields detected:</strong> <span id="tmplCount">0</span></div>
+            <div><strong>Modèle chargé :</strong> <span id="tmplName">—</span></div>
+            <div><strong>Champs détectés :</strong> <span id="tmplCount">0</span></div>
           </div>
 
           <div style="margin-top:12px">
-            <button id="saveJson" class="secondary" disabled>Save form values (.json)</button>
-            <button id="loadJson" class="secondary" style="margin-left:6px">Load values (.json)</button>
+            <button id="saveJson" class="secondary" disabled>Enregistrer les valeurs (.json)</button>
+            <button id="loadJson" class="secondary" style="margin-left:6px">Charger les valeurs (.json)</button>
           </div>
 
           <div style="margin-top:10px">
-            <label class="small">Preview replacements (non-empty only):</label>
+            <label class="small">Aperçu des remplacements (non vides uniquement):</label>
             <div id="previewList" style="margin-top:6px;color:var(--muted)"></div>
           </div>
 
           <div class="actions" style="margin-top:12px">
-            <button id="clearBtn" class="secondary">Clear</button>
-            <button id="helpBtn" class="secondary">Help</button>
+            <button id="clearBtn" class="secondary">Effacer</button>
+            <button id="helpBtn" class="secondary">Aide</button>
           </div>
 
           <div style="margin-top:12px">
-            <div class="small">How it works: the app reads the `.docx` (ZIP) in the browser, extracts <code>word/document.xml</code>, normalizes text runs, finds tokens matching <code>«...»</code>, builds the form, and when generating replaces only tokens with non-empty values and downloads a new .docx.</div>
+            <div class="small">Comment ça marche : l'application lit le `.docx` (ZIP) dans le navigateur, extrait <code>word/document.xml</code>, normalise les "runs" de texte, trouve les jetons correspondant à <code>«...»</code>, construit le formulaire, et lors de la génération, remplace uniquement les jetons avec des valeurs non vides et télécharge un nouveau .docx.</div>
           </div>
         </div>
       </div>
     </div>
 
-    <footer>Built for you — offline single-file MVP</footer>
+    <footer>Créé pour vous — MVP monofichier hors ligne</footer>
   </div>
 </div>
 
@@ -139,12 +139,12 @@ fileInput.addEventListener('change', async (e) => {
   resetState();
   if (!f) return;
   if (!f.name.toLowerCase().endsWith('.docx')) {
-    alert('Please select a .docx file');
+    alert('Veuillez sélectionner un fichier .docx');
     return;
   }
   templateFilename = f.name;
   tmplName.textContent = f.name;
-  fieldCounter.textContent = 'Reading file...';
+  fieldCounter.textContent = 'Lecture du fichier...';
   try {
     const arrayBuffer = await f.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
@@ -152,7 +152,7 @@ fileInput.addEventListener('change', async (e) => {
     // Read document.xml
     const docXmlFile = zip.file('word/document.xml');
     if (!docXmlFile) {
-      alert('This .docx does not contain word/document.xml (not a valid Word document).');
+      alert('Ce .docx ne contient pas word/document.xml (ce n\'est pas un document Word valide).');
       resetState();
       return;
     }
@@ -193,20 +193,20 @@ fileInput.addEventListener('change', async (e) => {
     // unique and keep order
     // detectedFields = Array.from(new Set(detectedFields));
     buildForm(detectedFields);
-    fieldCounter.textContent = detectedFields.length ? `${detectedFields.length} fields detected` : 'No fields detected';
+    fieldCounter.textContent = detectedFields.length ? `${detectedFields.length} champs détectés` : 'Aucun champ détecté';
     tmplCount.textContent = detectedFields.length;
     generateBtn.disabled = detectedFields.length === 0;
     saveJsonBtn.disabled = detectedFields.length === 0;
     warnSplit.style.display = ''; // show and hide based on detection issues
     if (detectedFields.length === 0) {
       warnSplit.style.display = 'block';
-      warnSplit.innerText = 'No tokens detected. This may be because tokens are split across Word runs in a way the app could not normalize. Try ensuring your tokens are plain text (single run) in Word, or remove formatting around the token.';
+      warnSplit.innerText = 'Aucun jeton détecté. Cela peut être dû au fait que les jetons sont divisés entre plusieurs "runs" de texte Word d\'une manière que l\'application n\'a pas pu normaliser. Essayez de vous assurer que vos jetons sont en texte brut (un seul "run") dans Word, ou supprimez la mise en forme autour du jeton.';
     } else {
       warnSplit.style.display = 'none';
     }
   } catch (err) {
     console.error(err);
-    alert('Error reading .docx: ' + (err && err.message ? err.message : err));
+    alert('Erreur lors de la lecture du .docx: ' + (err && err.message ? err.message : err));
     resetState();
   }
 });
@@ -217,7 +217,7 @@ function resetState() {
   detectedFields = [];
   templateFilename = null;
   formArea.innerHTML = '';
-  fieldCounter.textContent = 'No file loaded';
+  fieldCounter.textContent = 'Aucun fichier chargé';
   tmplName.textContent = '—';
   tmplCount.textContent = '0';
   generateBtn.disabled = true;
@@ -309,7 +309,7 @@ function extractFields(xml) {
 function buildForm(fields) {
   formArea.innerHTML = '';
   if (!fields || fields.length === 0) {
-    formArea.innerHTML = '<div class="small">No fields detected. Load a template with tokens like «field_name».</div>';
+    formArea.innerHTML = '<div class="small">Aucun champ détecté. Chargez un modèle avec des jetons comme «nom_du_champ».</div>';
     return;
   }
   const frag = document.createDocumentFragment();
@@ -352,7 +352,7 @@ function updatePreview() {
   const vals = gatherValues();
   const entries = Object.entries(vals).filter(([k,v]) => v && v.trim() !== '');
   if (entries.length === 0) {
-    previewList.innerHTML = '<div class="small">No replacements selected (all fields empty).</div>';
+    previewList.innerHTML = '<div class="small">Aucun remplacement sélectionné (tous les champs sont vides).</div>';
     return;
   }
   previewList.innerHTML = '';
@@ -364,13 +364,13 @@ function updatePreview() {
   if (entries.length > 100) {
     const more = document.createElement('div');
     more.className = 'small';
-    more.textContent = `...and ${entries.length - 100} more`;
+    more.textContent = `...et ${entries.length - 100} de plus`;
     previewList.appendChild(more);
   }
 }
 
 generateBtn.addEventListener('click', async () => {
-  if (!currentZip || !originalDocumentXml) { alert('No template loaded'); return; }
+  if (!currentZip || !originalDocumentXml) { alert('Aucun modèle chargé'); return; }
   const values = gatherValues();
   // perform replacements for non-empty values only
   let modifiedXml = originalDocumentXml;
@@ -408,7 +408,7 @@ generateBtn.addEventListener('click', async () => {
     downloadBlob(outBlob, outName);
   } catch (err) {
     console.error(err);
-    alert('Error generating new .docx: ' + (err && err.message ? err.message : err));
+    alert('Erreur lors de la génération du nouveau .docx: ' + (err && err.message ? err.message : err));
   }
 });
 
@@ -452,7 +452,7 @@ loadJsonBtn.addEventListener('click', () => {
       });
       updatePreview();
     } catch (err) {
-      alert('Failed to load JSON: ' + err);
+      alert('Échec du chargement du JSON: ' + err);
     }
   });
   inp.click();
@@ -465,14 +465,14 @@ clearBtn.addEventListener('click', () => {
 });
 
 helpBtn.addEventListener('click', () => {
-  alert(`MVP Help:
-1) In your Word template, put tokens like «field_name_here» (use underscore for spaces).
-2) Save the .docx.
-3) Load the .docx with the "Choose Word Template" button.
-4) Fill values in the form and click "Generate Word".
-Notes:
-- Empty values leave the token unchanged.
-- If tokens are not detected, they may be split across Word text runs; try retyping the token in Word as plain text (no special formatting).`);
+  alert(`Aide MVP :
+1) Dans votre modèle Word, placez des jetons comme «nom_du_champ_ici» (utilisez le tiret bas pour les espaces).
+2) Enregistrez le .docx.
+3) Chargez le .docx avec le bouton "Choisir un modèle Word".
+4) Remplissez les valeurs dans le formulaire et cliquez sur "Générer le Word".
+Remarques :
+- Les valeurs vides laissent le jeton inchangé.
+- Si les jetons ne sont pas détectés, ils peuvent être divisés entre plusieurs "runs" de texte Word ; essayez de retaper le jeton dans Word en texte brut (sans mise en forme spéciale).`);
 });
 
 </script>
