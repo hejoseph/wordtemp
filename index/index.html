@@ -134,6 +134,70 @@
     This will often work for tokens that are not heavily formatted across runs.
 */
 
+// --- IndexedDB Helper ---
+const idbHelper = {
+  db: null,
+  dbName: 'docxContractsDB',
+  storeName: 'contracts',
+
+  async init() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+      request.onerror = (event) => {
+        console.error('IndexedDB error:', request.error);
+        reject('Error opening IndexedDB.');
+      };
+      request.onsuccess = (event) => {
+        this.db = event.target.result;
+        resolve();
+      };
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          // The object store will store contract objects. We use an auto-incrementing key.
+          db.createObjectStore(this.storeName, { autoIncrement: true, keyPath: 'id' });
+        }
+      };
+    });
+  },
+
+  async getContracts() {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject('DB not initialized');
+      const transaction = this.db.transaction([this.storeName], 'readonly');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.getAll();
+      request.onerror = (event) => reject('Error fetching contracts.');
+      request.onsuccess = (event) => resolve(event.target.result);
+    });
+  },
+
+  async saveContract(contract) {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject('DB not initialized');
+      const transaction = this.db.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      // Use put to handle both insert and update. It returns the key on success.
+      const request = store.put(contract);
+      request.onerror = (event) => reject('Error saving contract.');
+      request.onsuccess = (event) => resolve(event.target.result);
+    });
+  },
+
+  async deleteContract(contractId) {
+    return new Promise((resolve, reject) => {
+      if (!this.db) return reject('DB not initialized');
+      const transaction = this.db.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      const request = store.delete(contractId);
+      request.onerror = (event) => reject('Error deleting contract.');
+      request.onsuccess = (event) => resolve();
+    });
+  }
+};
+// --- End IndexedDB Helper ---
+
+
 const fileInput = document.getElementById('docxFile');
 const formArea = document.getElementById('formArea');
 const fieldCounter = document.getElementById('fieldCounter');
@@ -151,6 +215,34 @@ let currentZip = null;
 let originalDocumentXml = null;
 let detectedFields = []; // array of field names
 let templateFilename = null;
+
+const contractNameInput = document.getElementById('contractName');
+const saveContractBtn = document.getElementById('saveContractBtn');
+const contractsList = document.getElementById('contractsList');
+const generateSelectedBtn = document.getElementById('generateSelectedBtn');
+
+let savedContracts = [];
+let contractIdCounter = 0;
+
+// Initializer function
+async function initializeApp() {
+  try {
+    await idbHelper.init();
+    savedContracts = await idbHelper.getContracts();
+    if (savedContracts.length > 0) {
+        // Set the counter to the highest existing ID + 1 to avoid collisions
+        contractIdCounter = Math.max(...savedContracts.map(c => c.id)) + 1;
+    }
+    renderContractsList();
+  } catch (err) {
+    console.error('Could not initialize IndexedDB:', err);
+    alert('Avertissement : Impossible de charger les contrats enregistrés. Les données ne seront pas conservées.');
+  }
+}
+
+// Call initializer on page load
+document.addEventListener('DOMContentLoaded', initializeApp);
+
 
 fileInput.addEventListener('change', async (e) => {
   const f = e.target.files && e.target.files[0];
@@ -217,6 +309,8 @@ fileInput.addEventListener('change', async (e) => {
     saveJsonBtn.disabled = detectedFields.length === 0;
     contractNameInput.disabled = detectedFields.length === 0;
     saveContractBtn.disabled = detectedFields.length === 0;
+    // After loading a template, re-evaluate the generate button state
+    renderContractsList();
     warnSplit.style.display = ''; // show and hide based on detection issues
     if (detectedFields.length === 0) {
       warnSplit.style.display = 'block';
@@ -247,8 +341,7 @@ function resetState() {
   if(contractNameInput) contractNameInput.disabled = true;
   if(saveContractBtn) saveContractBtn.disabled = true;
   if(generateSelectedBtn) generateSelectedBtn.disabled = true;
-  savedContracts = [];
-  if(contractsList) renderContractsList();
+  // DO NOT clear savedContracts or re-render here, as they are persistent.
 }
 
 function normalizeRuns(xml) {
@@ -489,14 +582,6 @@ clearBtn.addEventListener('click', () => {
   updatePreview();
 });
 
-const contractNameInput = document.getElementById('contractName');
-const saveContractBtn = document.getElementById('saveContractBtn');
-const contractsList = document.getElementById('contractsList');
-const generateSelectedBtn = document.getElementById('generateSelectedBtn');
-
-let savedContracts = [];
-let contractIdCounter = 0;
-
 function renderContractsList() {
   contractsList.innerHTML = '';
   if (savedContracts.length === 0) {
@@ -518,7 +603,7 @@ function renderContractsList() {
     checkbox.style.width = 'auto';
     checkbox.addEventListener('change', () => {
         const anyChecked = Array.from(contractsList.querySelectorAll('input[type=checkbox]')).some(chk => chk.checked);
-        generateSelectedBtn.disabled = !anyChecked;
+        generateSelectedBtn.disabled = !anyChecked || !currentZip;
     });
 
 
@@ -549,8 +634,11 @@ function renderContractsList() {
     deleteBtn.style.fontSize = '12px';
     deleteBtn.style.padding = '4px 8px';
     deleteBtn.addEventListener('click', () => {
-      savedContracts = savedContracts.filter(c => c.id !== contract.id);
-      renderContractsList();
+      if (confirm(`Êtes-vous sûr de vouloir supprimer le contrat "${contract.name}" ?`)) {
+        idbHelper.deleteContract(contract.id).catch(err => alert('Erreur lors de la suppression du contrat de la base de données.'));
+        savedContracts = savedContracts.filter(c => c.id !== contract.id);
+        renderContractsList();
+      }
     });
 
     contractRow.appendChild(checkbox);
@@ -561,10 +649,10 @@ function renderContractsList() {
   });
   contractsList.appendChild(frag);
   const anyChecked = Array.from(contractsList.querySelectorAll('input[type=checkbox]')).some(chk => chk.checked);
-  generateSelectedBtn.disabled = !anyChecked;
+  generateSelectedBtn.disabled = !anyChecked || !currentZip;
 }
 
-saveContractBtn.addEventListener('click', () => {
+saveContractBtn.addEventListener('click', async () => {
   const values = gatherValues();
   const name = contractNameInput.value.trim();
 
@@ -583,16 +671,30 @@ saveContractBtn.addEventListener('click', () => {
   if (existingContract) {
       if (confirm('Un contrat avec ce nom existe déjà. Voulez-vous le mettre à jour ?')) {
           existingContract.values = values;
-      }
-      else {
+          try {
+            await idbHelper.saveContract(existingContract);
+          } catch (err) {
+            alert('Erreur lors de la mise à jour du contrat dans la base de données.');
+          }
+      } else {
           return;
       }
   } else {
-      savedContracts.push({
+      const newContract = {
         id: contractIdCounter++,
         name: name,
         values: values
-      });
+      };
+      savedContracts.push(newContract);
+      try {
+        // The save returns the new ID, which we can assign back if needed, though our counter should be in sync.
+        const newId = await idbHelper.saveContract(newContract);
+        newContract.id = newId; // Ensure our in-memory object has the DB-assigned key
+      } catch (err) {
+        alert('Erreur lors de l\'enregistrement du contrat dans la base de données.');
+        // rollback in-memory change
+        savedContracts = savedContracts.filter(c => c.id !== newContract.id);
+      }
   }
   
   renderContractsList();
