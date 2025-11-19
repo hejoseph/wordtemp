@@ -157,18 +157,25 @@ fileInput.addEventListener('change', async (e) => {
     
     let xmlText = await docXmlFile.async('text');
 
-    // const headerFooterFiles = ['word/header1.xml', 'word/header2.xml', 'word/header3.xml', 'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'];
-    // headerFooterFiles.forEach(fileName => {
-    //   try {
-    //     docXmlFile = zip.file(fileName);
-    //     const content = await docXmlFile.async('text');
-    //     if (content) {
-    //       xmlText += ' ' + content;
-    //     }
-    //   } catch (e) {
-    //     // File might not exist, which is fine
-    //   }
-    // });
+    // Also read headers and footers
+    const headerFooterFiles = [
+      'word/header1.xml', 'word/header2.xml', 'word/header3.xml',
+      'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'
+    ];
+
+    for (const fileName of headerFooterFiles) {
+      const headerFooterFile = zip.file(fileName);
+      if (headerFooterFile) {
+        try {
+          const content = await headerFooterFile.async('text');
+          if (content) {
+            xmlText += ' ' + content;
+          }
+        } catch (e) {
+          console.warn(`Could not read ${fileName}, which is fine.`, e);
+        }
+      }
+    }
 
     // Basic normalization: join adjacent <w:t> tags to reduce run-splits.
     // This is a pragmatic step for MVP; it may remove some formatting information
