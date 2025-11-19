@@ -97,6 +97,23 @@
       </div>
     </div>
 
+    <div style="margin-top: 16px;">
+      <h3 style="margin-top:0">Contrats</h3>
+      <div class="row" style="align-items: flex-end; gap: 8px;">
+        <div style="flex: 1;">
+          <label for="contractName" class="small">Nom du contrat</label><br/>
+          <input type="text" id="contractName" placeholder="Ex: Contrat Client A" style="width: 98%;">
+        </div>
+        <button id="saveContractBtn" class="secondary">Enregistrer le contrat</button>
+      </div>
+      <div id="contractsList" class="panel" style="margin-top: 12px; min-height: 100px;">
+        <div class="small">Les contrats enregistrés apparaîtront ici.</div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button id="generateSelectedBtn" disabled>Générer la sélection (.zip)</button>
+      </div>
+    </div>
+
     <footer>Créé pour vous — MVP monofichier hors ligne</footer>
   </div>
 </div>
@@ -198,6 +215,8 @@ fileInput.addEventListener('change', async (e) => {
     tmplCount.textContent = detectedFields.length;
     generateBtn.disabled = detectedFields.length === 0;
     saveJsonBtn.disabled = detectedFields.length === 0;
+    contractNameInput.disabled = detectedFields.length === 0;
+    saveContractBtn.disabled = detectedFields.length === 0;
     warnSplit.style.display = ''; // show and hide based on detection issues
     if (detectedFields.length === 0) {
       warnSplit.style.display = 'block';
@@ -225,6 +244,11 @@ function resetState() {
   saveJsonBtn.disabled = true;
   previewList.innerHTML = '';
   warnSplit.style.display = 'none';
+  if(contractNameInput) contractNameInput.disabled = true;
+  if(saveContractBtn) saveContractBtn.disabled = true;
+  if(generateSelectedBtn) generateSelectedBtn.disabled = true;
+  savedContracts = [];
+  if(contractsList) renderContractsList();
 }
 
 function normalizeRuns(xml) {
@@ -464,6 +488,178 @@ clearBtn.addEventListener('click', () => {
   inputs.forEach(i => i.value = '');
   updatePreview();
 });
+
+const contractNameInput = document.getElementById('contractName');
+const saveContractBtn = document.getElementById('saveContractBtn');
+const contractsList = document.getElementById('contractsList');
+const generateSelectedBtn = document.getElementById('generateSelectedBtn');
+
+let savedContracts = [];
+let contractIdCounter = 0;
+
+function renderContractsList() {
+  contractsList.innerHTML = '';
+  if (savedContracts.length === 0) {
+    contractsList.innerHTML = '<div class="small">Les contrats enregistrés apparaîtront ici.</div>';
+    generateSelectedBtn.disabled = true;
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  savedContracts.forEach((contract, index) => {
+    const contractRow = document.createElement('div');
+    contractRow.className = 'form-row';
+    contractRow.style.marginBottom = '4px';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `contract_chk_${contract.id}`;
+    checkbox.dataset.contractId = contract.id;
+    checkbox.style.width = 'auto';
+    checkbox.addEventListener('change', () => {
+        const anyChecked = Array.from(contractsList.querySelectorAll('input[type=checkbox]')).some(chk => chk.checked);
+        generateSelectedBtn.disabled = !anyChecked;
+    });
+
+
+    const label = document.createElement('label');
+    label.htmlFor = `contract_chk_${contract.id}`;
+    label.textContent = contract.name;
+    label.style.width = 'auto';
+    label.style.flex = '1';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = 'Charger';
+    loadBtn.className = 'secondary';
+    loadBtn.style.fontSize = '12px';
+    loadBtn.style.padding = '4px 8px';
+    loadBtn.addEventListener('click', () => {
+      // populate form
+      Object.entries(contract.values).forEach(([k,v]) => {
+        const el = document.querySelector('[data-field-name="'+k+'"]');
+        if (el) el.value = v;
+      });
+      contractNameInput.value = contract.name;
+      updatePreview();
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Supprimer';
+    deleteBtn.className = 'secondary';
+    deleteBtn.style.fontSize = '12px';
+    deleteBtn.style.padding = '4px 8px';
+    deleteBtn.addEventListener('click', () => {
+      savedContracts = savedContracts.filter(c => c.id !== contract.id);
+      renderContractsList();
+    });
+
+    contractRow.appendChild(checkbox);
+    contractRow.appendChild(label);
+    contractRow.appendChild(loadBtn);
+    contractRow.appendChild(deleteBtn);
+    frag.appendChild(contractRow);
+  });
+  contractsList.appendChild(frag);
+  const anyChecked = Array.from(contractsList.querySelectorAll('input[type=checkbox]')).some(chk => chk.checked);
+  generateSelectedBtn.disabled = !anyChecked;
+}
+
+saveContractBtn.addEventListener('click', () => {
+  const values = gatherValues();
+  const name = contractNameInput.value.trim();
+
+  if (Object.values(values).every(v => v === '')) {
+      alert('Le formulaire est vide, rien à enregistrer.');
+      return;
+  }
+
+  if (!name) {
+    alert('Veuillez donner un nom au contrat.');
+    contractNameInput.focus();
+    return;
+  }
+
+  const existingContract = savedContracts.find(c => c.name === name);
+  if (existingContract) {
+      if (confirm('Un contrat avec ce nom existe déjà. Voulez-vous le mettre à jour ?')) {
+          existingContract.values = values;
+      }
+      else {
+          return;
+      }
+  } else {
+      savedContracts.push({
+        id: contractIdCounter++,
+        name: name,
+        values: values
+      });
+  }
+  
+  renderContractsList();
+  contractNameInput.value = '';
+});
+
+generateSelectedBtn.addEventListener('click', async () => {
+    if (!currentZip || !originalDocumentXml) { alert('Aucun modèle chargé'); return; }
+
+    const selectedContracts = savedContracts.filter(c => {
+        const chk = document.getElementById(`contract_chk_${c.id}`);
+        return chk && chk.checked;
+    });
+
+    if (selectedContracts.length === 0) {
+        alert('Veuillez sélectionner au moins un contrat à générer.');
+        return;
+    }
+
+    const generationZip = new JSZip();
+    let hasFailures = false;
+
+    for (const contract of selectedContracts) {
+        try {
+            let modifiedXml = originalDocumentXml;
+            Object.entries(contract.values).forEach(([key, val]) => {
+                if (val === null || val === undefined) return;
+                const trimmed = val.toString().trim();
+                if (trimmed.length === 0) return;
+                const esc = escapeXml(trimmed);
+                const token = `«${key}»`;
+                modifiedXml = modifiedXml.split(token).join(esc);
+            });
+
+            const newDocZip = new JSZip();
+            for (const path of Object.keys(currentZip.files)) {
+                if (path === 'word/document.xml') {
+                    newDocZip.file(path, modifiedXml);
+                } else {
+                    const f = currentZip.file(path);
+                    if (!f) continue;
+                    const content = await f.async('uint8array');
+                    newDocZip.file(path, content);
+                }
+            }
+            const outBlob = await newDocZip.generateAsync({type:'blob'});
+            const safeFilename = contract.name.replace(/[^a-z0-9_-\s]/gi, '_') + '.docx';
+            generationZip.file(safeFilename, outBlob);
+
+        } catch (err) {
+            console.error(`Erreur lors de la génération du contrat "${contract.name}":`, err);
+            hasFailures = true;
+        }
+    }
+
+    if (hasFailures) {
+        alert('Certains contrats n\'ont pas pu être générés. Vérifiez la console pour les erreurs.');
+    }
+
+    if (Object.keys(generationZip.files).length > 0) {
+        const zipBlob = await generationZip.generateAsync({type:'blob'});
+        const zipName = templateFilename ? templateFilename.replace(/\.docx$/i,'') + '_contrats.zip' : 'contrats.zip';
+        downloadBlob(zipBlob, zipName);
+    }
+});
+
+generateBtn.style.display = 'none';
 
 helpBtn.addEventListener('click', () => {
   alert(`Aide MVP :
