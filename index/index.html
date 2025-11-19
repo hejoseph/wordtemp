@@ -29,6 +29,13 @@
   .field-count{font-weight:600}
   footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
   @media(max-width:920px){.cols{grid-template-columns:1fr}}
+  .modal{position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center}
+  .modal-content{background-color:#fff;padding:20px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,0.3);width:90%;max-width:600px;position:relative}
+  .modal-close{color:#aaa;position:absolute;top:10px;right:15px;font-size:28px;font-weight:bold;cursor:pointer}
+  .modal-close:hover,.modal-close:focus{color:#000;text-decoration:none}
+  #modalContractData .data-row{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #eee}
+  #modalContractData .data-key{font-weight:600;width:180px;color:#333;font-size:13px}
+  #modalContractData .data-value{flex:1;color:#666;font-size:13px;word-break:break-word}
 </style>
 </head>
 <body>
@@ -115,6 +122,14 @@
     </div>
 
     <footer>Créé pour vous — MVP monofichier hors ligne</footer>
+  </div>
+</div>
+
+<div id="viewModal" class="modal">
+  <div class="modal-content">
+    <span class="modal-close">&times;</span>
+    <h3 id="modalContractName" style="margin-top:0"></h3>
+    <div id="modalContractData" class="panel" style="max-height: 400px; overflow-y: auto; background:#f9f9f9;"></div>
   </div>
 </div>
 
@@ -210,6 +225,10 @@ const previewList = document.getElementById('previewList');
 const clearBtn = document.getElementById('clearBtn');
 const helpBtn = document.getElementById('helpBtn');
 const warnSplit = document.getElementById('warnSplit');
+const viewModal = document.getElementById('viewModal');
+const modalContractName = document.getElementById('modalContractName');
+const modalContractData = document.getElementById('modalContractData');
+const modalCloseBtn = document.querySelector('.modal-close');
 
 let currentZip = null;
 let originalDocumentXml = null;
@@ -222,6 +241,44 @@ const contractsList = document.getElementById('contractsList');
 const generateSelectedBtn = document.getElementById('generateSelectedBtn');
 
 let savedContracts = [];
+
+// --- Modal Logic ---
+function showViewModal(contract) {
+  modalContractName.textContent = contract.name;
+  modalContractData.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  const sortedValues = Object.entries(contract.values).sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
+
+  for (const [key, value] of sortedValues) {
+    if (value) { // Only show non-empty values
+      const row = document.createElement('div');
+      row.className = 'data-row';
+      const keyEl = document.createElement('div');
+      keyEl.className = 'data-key';
+      keyEl.textContent = prettyLabel(key);
+      const valEl = document.createElement('div');
+      valEl.className = 'data-value';
+      valEl.textContent = value;
+      row.appendChild(keyEl);
+      row.appendChild(valEl);
+      frag.appendChild(row);
+    }
+  }
+  modalContractData.appendChild(frag);
+  viewModal.style.display = 'flex';
+}
+
+function hideViewModal() {
+  viewModal.style.display = 'none';
+}
+
+modalCloseBtn.addEventListener('click', hideViewModal);
+window.addEventListener('click', (event) => {
+  if (event.target == viewModal) {
+    hideViewModal();
+  }
+});
+// --- End Modal Logic ---
 
 // Initializer function
 async function initializeApp() {
@@ -608,6 +665,15 @@ function renderContractsList() {
     label.style.width = 'auto';
     label.style.flex = '1';
 
+    const viewBtn = document.createElement('button');
+    viewBtn.textContent = 'Voir';
+    viewBtn.className = 'secondary';
+    viewBtn.style.fontSize = '12px';
+    viewBtn.style.padding = '4px 8px';
+    viewBtn.addEventListener('click', () => {
+      showViewModal(contract);
+    });
+
     const loadBtn = document.createElement('button');
     loadBtn.textContent = 'Charger';
     loadBtn.className = 'secondary';
@@ -638,6 +704,7 @@ function renderContractsList() {
 
     contractRow.appendChild(checkbox);
     contractRow.appendChild(label);
+    contractRow.appendChild(viewBtn);
     contractRow.appendChild(loadBtn);
     contractRow.appendChild(deleteBtn);
     frag.appendChild(contractRow);
