@@ -119,6 +119,7 @@
       <div style="margin-top: 12px;">
         <button id="generateSelectedBtn" disabled>Générer la sélection (.zip)</button>
         <button id="exportExcelBtn" class="secondary" style="margin-left: 6px;">Exporter vers Excel (.xlsx)</button>
+        <button id="importExcelBtn" class="secondary" style="margin-left: 6px;">Importer depuis Excel (.xlsx)</button>
       </div>
     </div>
 
@@ -242,10 +243,80 @@ const saveContractBtn = document.getElementById('saveContractBtn');
 const contractsList = document.getElementById('contractsList');
 const generateSelectedBtn = document.getElementById('generateSelectedBtn');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
+const importExcelBtn = document.getElementById('importExcelBtn');
 
 let savedContracts = [];
 
-// --- Excel Export Logic ---
+// --- Excel Import/Export Logic ---
+function handleExcelImport(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type: 'array'});
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        alert('Le fichier Excel est vide ou dans un format non reconnu.');
+        return;
+      }
+
+      const contractKey = 'Nom du Contrat';
+      if (!jsonData[0].hasOwnProperty(contractKey)) {
+          alert(`Le fichier Excel doit contenir une colonne nommée "${contractKey}".`);
+          return;
+      }
+
+      let updatedCount = 0;
+      let addedCount = 0;
+
+      for (const row of jsonData) {
+        const contractName = row[contractKey];
+        if (!contractName) continue; // Skip rows without a contract name
+
+        const values = { ...row };
+        delete values[contractKey];
+
+        const existingContract = savedContracts.find(c => c.name === contractName);
+        if (existingContract) {
+          if (confirm(`Un contrat nommé "${contractName}" existe déjà. Voulez-vous le mettre à jour avec les données du fichier Excel ?`)) {
+            existingContract.values = values;
+            await idbHelper.saveContract(existingContract);
+            updatedCount++;
+          }
+        } else {
+          const newContract = { name: contractName, values: values };
+          const newId = await idbHelper.saveContract(newContract);
+          newContract.id = newId;
+          savedContracts.push(newContract);
+          addedCount++;
+        }
+      }
+
+      renderContractsList();
+      alert(`${addedCount} contrat(s) ajouté(s) et ${updatedCount} contrat(s) mis à jour.`);
+
+    } catch (err) {
+      console.error('Error processing Excel file:', err);
+      alert('Erreur lors du traitement du fichier Excel.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+importExcelBtn.addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  fileInput.addEventListener('change', handleExcelImport);
+  fileInput.click();
+});
+
 function exportToExcel() {
   if (savedContracts.length === 0) {
     alert('Aucun contrat à exporter.');
@@ -282,7 +353,7 @@ function exportToExcel() {
 }
 
 exportExcelBtn.addEventListener('click', exportToExcel);
-// --- End Excel Export Logic ---
+// --- End Excel Import/Export Logic ---
 
 
 // --- Modal Logic ---
