@@ -260,7 +260,7 @@ function exportToExcel() {
   const sortedFields = Array.from(allFields).sort();
 
   // Create the header row
-  const header = ['Nom du Contrat', ...sortedFields.map(prettyLabel)];
+  const header = ['Nom du Contrat', ...sortedFields];
   
   // Create the data rows
   const data = savedContracts.map(contract => {
